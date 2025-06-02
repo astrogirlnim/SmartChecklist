@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome{% endblock %}
+
+{% block content %}
+<div class="splash-container">
+    <!-- Decorative organic elements -->
+    <div class="decorative-element leaf1">🌿</div>
+    <div class="decorative-element leaf2">🍃</div>
+    <div class="decorative-element stone1">⬢</div>
+    <div class="decorative-element stone2">◇</div>
+    
+    <div class="splash-header">
+        <h1 class="splash-title">SmartChecklist</h1>
+        <p class="splash-subtitle">Where productivity meets organic simplicity</p>
+        <div class="splash-description">
+            Embrace a more mindful approach to task management. SmartChecklist combines the tactile satisfaction of checking items off a list with the natural flow of everyday life. Like leaves on a tree or stones in a riverbed, every task finds its perfect place in the rhythm of your day.
+        </div>
+    </div>
+
+    <div class="splash-features">
+        <div class="feature-card">
+            <div class="feature-icon">🌱</div>
+            <h3 class="feature-title">Naturally Organized</h3>
+            <p class="feature-description">Create checklists that grow organically with your needs. No rigid structures or overwhelming features – just simple, intuitive organization that adapts to your natural workflow.</p>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">🏞️</div>
+            <h3 class="feature-title">Mindful Design</h3>
+            <p class="feature-description">Experience the calming beauty of earth tones and organic textures. Our interface draws inspiration from natural materials – clay, sage, warm wood – creating a peaceful environment for productivity.</p>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <h3 class="feature-title">Effortless Flow</h3>
+            <p class="feature-description">Add tasks, check them off, create new lists – everything flows as naturally as breathing. No complicated features to learn, just the essential tools you need to stay organized and focused.</p>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">🧘</div>
+            <h3 class="feature-title">Digital Minimalism</h3>
+            <p class="feature-description">Escape the chaos of overwhelming productivity apps. SmartChecklist strips away the noise, leaving only what matters: your tasks, your progress, your peace of mind.</p>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">🌟</div>
+            <h3 class="feature-title">Personal Sanctuary</h3>
+            <p class="feature-description">Your own private space for planning and reflection. Every checklist is a small sanctuary where you can organize thoughts, set intentions, and celebrate accomplishments in tranquil simplicity.</p>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">🎯</div>
+            <h3 class="feature-title">Purposeful Progress</h3>
+            <p class="feature-description">Each checked box represents meaningful progress toward your goals. Like placing stones on a cairn, every completed task is a step forward on your personal journey of growth and achievement.</p>
+        </div>
+    </div>
+
+    <div class="splash-cta">
+        <a href="{{ url_for('register') }}" class="btn-cta">
+            <i class="fas fa-seedling"></i>
+            Begin Your Journey
+        </a>
+        <p style="margin-top: 1.5rem; color: var(--text-muted); font-size: 0.95rem;">
+            Already have an account? <a href="{{ url_for('login') }}" style="color: var(--primary-color); font-weight: 600;">Sign in here</a>
+        </p>
+    </div>
+</div>
+{% endblock %} 

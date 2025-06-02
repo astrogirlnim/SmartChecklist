@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}{{ checklist.title }}{% endblock %}
+
+{% block content %}
+<div class="checklist-view">
+    <div class="checklist-header">
+        <h1>
+            <i class="fas fa-tasks"></i>
+            {{ checklist.title }}
+        </h1>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i>
+            Back to Dashboard
+        </a>
+    </div>
+
+    <form method="post" action="{{ url_for('add_item', checklist_id=checklist.id) }}" class="add-item-form">
+        <input type="text" name="content" placeholder="Enter new item..." required>
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-plus"></i>
+            Add Item
+        </button>
+    </form>
+
+    <div class="items-list">
+        {% for item in items %}
+        <div class="item {% if item.checked %}checked{% endif %}">
+            <label class="item-content">
+                <input type="checkbox" 
+                       {% if item.checked %}checked{% endif %}
+                       onchange="toggleItem({{ item.id }})"
+                >
+                <span class="item-text">{{ item.content }}</span>
+            </label>
+        </div>
+        {% else %}
+        <p class="no-items">
+            <i class="fas fa-inbox"></i>
+            No items in this checklist. Add your first item!
+        </p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %} 
