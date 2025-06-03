@@ -173,5 +173,42 @@ def toggle_item(item_id):
         return jsonify({'success': True})
     return jsonify({'success': False}), 404
 
+@app.route('/delete_item/<int:item_id>', methods=['POST'])
+@login_required
+def delete_item(item_id):
+    db = get_db()
+    # First check if the item exists and belongs to a checklist owned by the current user
+    item = db.execute('''
+        SELECT i.*, c.user_id 
+        FROM items i 
+        JOIN checklists c ON i.checklist_id = c.id 
+        WHERE i.id = ? AND c.user_id = ?
+    ''', (item_id, current_user.id)).fetchone()
+    
+    if item:
+        db.execute('DELETE FROM items WHERE id = ?', (item_id,))
+        db.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False}), 404
+
+@app.route('/delete_checklist/<int:checklist_id>', methods=['POST'])
+@login_required
+def delete_checklist(checklist_id):
+    db = get_db()
+    # Check if the checklist belongs to the current user
+    checklist = db.execute(
+        'SELECT * FROM checklists WHERE id = ? AND user_id = ?',
+        (checklist_id, current_user.id)
+    ).fetchone()
+    
+    if checklist:
+        # Delete all items in the checklist first (due to foreign key constraint)
+        db.execute('DELETE FROM items WHERE checklist_id = ?', (checklist_id,))
+        # Then delete the checklist itself
+        db.execute('DELETE FROM checklists WHERE id = ?', (checklist_id,))
+        db.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False}), 404
+
 if __name__ == '__main__':
     app.run(debug=True) 

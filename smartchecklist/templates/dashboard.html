@@ -25,15 +25,10 @@
                 <i class="fas fa-tasks"></i>
                 {{ checklist.title }}
             </h2>
-            <div class="card-actions">
-                <a href="{{ url_for('checklist', id=checklist.id) }}" class="btn btn-secondary">
-                    <i class="fas fa-eye"></i>
-                    View Checklist
-                </a>
-                <button onclick="deleteChecklist({{ checklist.id }})" class="btn btn-danger-small" title="Delete checklist">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
+            <a href="{{ url_for('checklist', id=checklist.id) }}" class="btn btn-secondary">
+                <i class="fas fa-eye"></i>
+                View Checklist
+            </a>
         </div>
         {% else %}
         <p class="no-checklists">
