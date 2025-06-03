@@ -1,53 +1,52 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, current_app
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
-import click
-
-
-class User(UserMixin):
-    def __init__(self, id, username):
-        self.id = id
-        self.username = username
-
-
-def get_db():
-    db = sqlite3.connect(current_app.config['DATABASE'])
-    db.row_factory = sqlite3.Row
-    return db
-
-
-def init_db():
-    with current_app.app_context():
-        db = get_db()
-        with current_app.open_resource('schema.sql', mode='r') as f:
-            db.cursor().executescript(f.read())
-        db.commit()
-
 
 def create_app(config=None):
     """Application factory function"""
-    app = Flask(__name__, instance_relative_config=True)
+    app = Flask(__name__)
     
     # Default configuration
-    app.config.from_mapping(
-        SECRET_KEY=os.environ.get('SECRET_KEY', os.urandom(24)),
-        DATABASE=os.path.join(app.instance_path, 'smartchecklist.sqlite'),
-    )
+    app.config['SECRET_KEY'] = os.urandom(24)  # Generate a random secret key
+    app.config['DATABASE'] = os.path.join(app.instance_path, 'smartchecklist.sqlite')
     
-    # Apply custom configuration if provided
+    # Load additional configuration if provided
     if config:
-        app.config.from_mapping(config)
+        app.config.update(config)
     
     # Ensure the instance folder exists
     os.makedirs(app.instance_path, exist_ok=True)
-    
+
     # Initialize Flask-Login
     login_manager = LoginManager()
     login_manager.init_app(app)
     login_manager.login_view = 'login'
-    
+
+    class User(UserMixin):
+        def __init__(self, id, username):
+            self.id = id
+            self.username = username
+
+    def get_db():
+        db = sqlite3.connect(app.config['DATABASE'])
+        db.row_factory = sqlite3.Row
+        return db
+
+    def init_db():
+        with app.app_context():
+            db = get_db()
+            with app.open_resource('schema.sql', mode='r') as f:
+                db.cursor().executescript(f.read())
+            db.commit()
+
+    @app.cli.command('init-db')
+    def init_db_command():
+        """Clear existing data and create new tables."""
+        init_db()
+        print('Initialized the database.')
+
     @login_manager.user_loader
     def load_user(user_id):
         db = get_db()
@@ -55,15 +54,7 @@ def create_app(config=None):
         if user:
             return User(user['id'], user['username'])
         return None
-    
-    # CLI command to initialize database
-    @app.cli.command('init-db')
-    def init_db_command():
-        """Clear existing data and create new tables."""
-        init_db()
-        click.echo('Initialized the database.')
-    
-    # Routes
+
     @app.route('/')
     def index():
         if current_user.is_authenticated:
@@ -190,17 +181,53 @@ def create_app(config=None):
             db.commit()
             return jsonify({'success': True})
         return jsonify({'success': False}), 404
+
+    @app.route('/delete_item/<int:item_id>', methods=['POST'])
+    @login_required
+    def delete_item(item_id):
+        db = get_db()
+        # First check if the item exists and belongs to a checklist owned by the current user
+        item = db.execute('''
+            SELECT i.*, c.user_id 
+            FROM items i 
+            JOIN checklists c ON i.checklist_id = c.id 
+            WHERE i.id = ? AND c.user_id = ?
+        ''', (item_id, current_user.id)).fetchone()
+        
+        if item:
+            db.execute('DELETE FROM items WHERE id = ?', (item_id,))
+            db.commit()
+            return jsonify({'success': True})
+        return jsonify({'success': False}), 404
+
+    @app.route('/delete_checklist/<int:checklist_id>', methods=['POST'])
+    @login_required
+    def delete_checklist(checklist_id):
+        db = get_db()
+        # Check if the checklist belongs to the current user
+        checklist = db.execute(
+            'SELECT * FROM checklists WHERE id = ? AND user_id = ?',
+            (checklist_id, current_user.id)
+        ).fetchone()
+        
+        if checklist:
+            # Delete all items in the checklist first (due to foreign key constraint)
+            db.execute('DELETE FROM items WHERE checklist_id = ?', (checklist_id,))
+            # Then delete the checklist itself
+            db.execute('DELETE FROM checklists WHERE id = ?', (checklist_id,))
+            db.commit()
+            return jsonify({'success': True})
+        return jsonify({'success': False}), 404
     
     return app
 
+# Create a global app instance for development
+app = create_app()
 
 def main():
-    """Entry point for the application"""
+    """Entry point for the command line script"""
     app = create_app()
-    # For production, use a proper WSGI server like Gunicorn
-    # This is just for development/testing
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
+    app.run(debug=True)
 
 if __name__ == '__main__':
     main() 

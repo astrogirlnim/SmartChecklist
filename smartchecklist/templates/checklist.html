@@ -9,10 +9,16 @@
             <i class="fas fa-tasks"></i>
             {{ checklist.title }}
         </h1>
-        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i>
-            Back to Dashboard
-        </a>
+        <div class="header-actions">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i>
+                Back to Dashboard
+            </a>
+            <button onclick="deleteChecklist({{ checklist.id }})" class="btn btn-danger">
+                <i class="fas fa-trash"></i>
+                Delete Checklist
+            </button>
+        </div>
     </div>
 
     <form method="post" action="{{ url_for('add_item', checklist_id=checklist.id) }}" class="add-item-form">
@@ -25,7 +31,7 @@
 
     <div class="items-list">
         {% for item in items %}
-        <div class="item {% if item.checked %}checked{% endif %}">
+        <div class="item {% if item.checked %}checked{% endif %}" data-item-id="{{ item.id }}">
             <label class="item-content">
                 <input type="checkbox" 
                        {% if item.checked %}checked{% endif %}
@@ -33,6 +39,9 @@
                 >
                 <span class="item-text">{{ item.content }}</span>
             </label>
+            <button onclick="deleteItem({{ item.id }})" class="btn btn-delete-item" title="Delete item">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
         {% else %}
         <p class="no-items">
