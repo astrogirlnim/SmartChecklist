@@ -5,6 +5,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# SSH
+droplet_key
+droplet_key.pub
+
 # Cursor IDE
 .cursor/
 .vscode/
