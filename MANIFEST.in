@@ -1,0 +1,8 @@
+include README.md
+include LICENSE
+include smartchecklist/schema.sql
+recursive-include smartchecklist/templates *.html
+recursive-include smartchecklist/static *.css *.js *.png *.jpg *.jpeg *.gif *.ico *.svg
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .DS_Store 

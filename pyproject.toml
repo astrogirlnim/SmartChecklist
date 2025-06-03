@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smartchecklist"
+version = "1.0.0"
+description = "A mindfully designed task management application with organic design"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "SmartChecklist Team", email = "contact@smartchecklist.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Framework :: Flask",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Office/Business :: Scheduling",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "Flask==3.0.2",
+    "Flask-Login==0.6.3",
+    "Werkzeug==3.0.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-username/smartchecklist"
+Documentation = "https://github.com/your-username/smartchecklist#readme"
+Repository = "https://github.com/your-username/smartchecklist.git"
+"Bug Tracker" = "https://github.com/your-username/smartchecklist/issues"
+
+[project.scripts]
+smartchecklist = "smartchecklist.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["smartchecklist*"]
+
+[tool.setuptools.package-data]
+smartchecklist = [
+    "templates/*.html",
+    "static/*.css",
+    "static/*.js",
+    "schema.sql",
+] 

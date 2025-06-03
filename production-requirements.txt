@@ -1,0 +1,13 @@
+# Production requirements for SmartChecklist
+# Install the wheel package first:
+# pip install dist/smartchecklist-1.0.0-py3-none-any.whl
+
+# WSGI Server for production
+gunicorn==21.2.0
+
+# Optional: Database migrations (if you plan to use PostgreSQL in production)
+# psycopg2-binary==2.9.7
+
+# Optional: Redis for session storage (if needed)
+# redis==5.0.1
+# flask-session==0.5.0 
