@@ -23,5 +23,5 @@ VOLUME ["/app/instance"]
 # Ensure the instance directory exists with proper permissions
 RUN mkdir -p /app/instance && chmod 755 /app/instance
 
-CMD ["waitress-serve", "--port", "5000","--call", "smartchecklist:create_app"]
+CMD ["waitress-serve", "--port", "8080", "--call", "smartchecklist:create_app"]
 
