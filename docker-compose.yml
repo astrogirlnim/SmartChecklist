@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  smartchecklist:
+    build: .
+    container_name: smartchecklist_app
+    ports:
+      - "5000:5000"
+    volumes:
+      - smartchecklist_data:/app/instance
+    environment:
+      - FLASK_ENV=production
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-your-secret-key-here}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  smartchecklist_data:
+    driver: local 

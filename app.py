@@ -4,6 +4,97 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
 
+def get_db_connection(db_path):
+    """Get database connection for a given database path"""
+    db = sqlite3.connect(db_path)
+    db.row_factory = sqlite3.Row
+    return db
+
+def database_exists_and_initialized(db_path):
+    """Check if database exists and has the required tables"""
+    if not os.path.exists(db_path):
+        return False
+    
+    try:
+        db = get_db_connection(db_path)
+        # Check if all required tables exist
+        required_tables = ['users', 'checklists', 'items']
+        for table in required_tables:
+            result = db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (table,)
+            ).fetchone()
+            if not result:
+                return False
+        
+        # Check if tables have the expected structure
+        # Check users table
+        users_schema = db.execute("PRAGMA table_info(users)").fetchall()
+        if len(users_schema) < 3:  # Should have id, username, password columns
+            return False
+        
+        # Check checklists table  
+        checklists_schema = db.execute("PRAGMA table_info(checklists)").fetchall()
+        if len(checklists_schema) < 3:  # Should have id, user_id, title columns
+            return False
+        
+        # Check items table
+        items_schema = db.execute("PRAGMA table_info(items)").fetchall()
+        if len(items_schema) < 4:  # Should have id, checklist_id, content, checked columns
+            return False
+        
+        return True
+        
+    except sqlite3.Error:
+        return False
+    finally:
+        if 'db' in locals():
+            db.close()
+
+def init_db(app_instance=None, db_path=None):
+    """Initialize database only if it doesn't exist or is not properly set up"""
+    if app_instance:
+        db_path = app_instance.config['DATABASE']
+    
+    if not db_path:
+        raise ValueError("Either app_instance or db_path must be provided")
+    
+    if database_exists_and_initialized(db_path):
+        print("Database already exists and is properly initialized.")
+        return
+        
+    print("Initializing database...")
+    
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    
+    if app_instance:
+        # Use Flask app context for schema loading
+        with app_instance.app_context():
+            db = get_db_connection(db_path)
+            with app_instance.open_resource('schema.sql', mode='r') as f:
+                db.cursor().executescript(f.read())
+            db.commit()
+            db.close()
+    else:
+        # Direct schema loading for standalone use
+        schema_path = os.path.join(os.path.dirname(__file__), 'schema.sql')
+        db = get_db_connection(db_path)
+        with open(schema_path, 'r') as f:
+            db.cursor().executescript(f.read())
+        db.commit()
+        db.close()
+    
+    print("Database initialized successfully.")
+
+def ensure_db_initialized(app_instance=None, db_path=None):
+    """Ensure database is initialized - safe to call multiple times"""
+    if app_instance:
+        db_path = app_instance.config['DATABASE']
+    
+    if not database_exists_and_initialized(db_path):
+        init_db(app_instance, db_path)
+
 def create_app(config=None):
     """Application factory function"""
     app = Flask(__name__)
@@ -33,19 +124,6 @@ def create_app(config=None):
         db = sqlite3.connect(app.config['DATABASE'])
         db.row_factory = sqlite3.Row
         return db
-
-    def init_db():
-        with app.app_context():
-            db = get_db()
-            with app.open_resource('schema.sql', mode='r') as f:
-                db.cursor().executescript(f.read())
-            db.commit()
-
-    @app.cli.command('init-db')
-    def init_db_command():
-        """Clear existing data and create new tables."""
-        init_db()
-        print('Initialized the database.')
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -218,6 +296,16 @@ def create_app(config=None):
             db.commit()
             return jsonify({'success': True})
         return jsonify({'success': False}), 404
+    
+    @app.cli.command('init-db')
+    def init_db_command():
+        """Clear existing data and create new tables."""
+        init_db(app_instance=app)
+        print('Initialized the database.')
+    
+    # Ensure database is initialized on app startup
+    with app.app_context():
+        ensure_db_initialized(app_instance=app)
     
     return app
 

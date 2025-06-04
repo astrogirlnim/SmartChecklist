@@ -138,6 +138,39 @@ Open your web browser and navigate to:
 http://127.0.0.1:5000
 ```
 
+## 🐳 Production Deployment
+
+### **Database Persistence**
+SmartChecklist includes a robust database persistence system that ensures your data is preserved across deployments and updates. The system automatically:
+
+- ✅ **Preserves existing user data** during application updates
+- ✅ **Automatically initializes database** on first deployment
+- ✅ **Validates database structure** and repairs if needed
+- ✅ **Uses Docker volumes** for reliable data persistence
+
+### **Quick Deployment (Docker)**
+```bash
+# Deploy with persistent database
+docker-compose up -d
+
+# Verify database status
+docker exec smartchecklist_app python init_database.py
+```
+
+### **Update Deployment**
+```bash
+# Safe update process - preserves all user data
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+### **📖 Complete Documentation**
+For comprehensive deployment instructions, database management, troubleshooting, and production best practices, see:
+
+- **[Database Persistence & Deployment Guide](./Documentation/DATABASE_PERSISTENCE_DEPLOYMENT.md)** - Complete implementation details and deployment options
+- **[Quick Reference](./Documentation/QUICK_DEPLOYMENT_REFERENCE.md)** - Common commands and troubleshooting steps
+
 ## 🎮 Usage Guide
 
 ### **Getting Started**
