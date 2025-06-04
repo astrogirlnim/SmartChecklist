@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # sync_and_build.sh - Automated script to sync files and rebuild the smartchecklist wheel
 # 
