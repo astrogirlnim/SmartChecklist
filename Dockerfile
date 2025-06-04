@@ -1,7 +1,9 @@
-FROM python:3.10-alpine
+FROM --platform=linux/amd64 python:3.10-alpine
 
 WORKDIR /app
- 
+
+# Install bash and build dependencies
+RUN apk add --no-cache bash
 RUN pip install waitress build
 
 COPY requirements.txt .
