@@ -18,7 +18,10 @@ CREATE TABLE checklists (
 CREATE TABLE items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     checklist_id INTEGER NOT NULL,
+    parent_item_id INTEGER,
     content TEXT NOT NULL,
+    url TEXT,
     checked INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY (checklist_id) REFERENCES checklists (id)
+    FOREIGN KEY (checklist_id) REFERENCES checklists (id),
+    FOREIGN KEY (parent_item_id) REFERENCES items (id)
 ); 

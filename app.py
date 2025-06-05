@@ -40,7 +40,12 @@ def database_exists_and_initialized(db_path):
         
         # Check items table
         items_schema = db.execute("PRAGMA table_info(items)").fetchall()
-        if len(items_schema) < 4:  # Should have id, checklist_id, content, checked columns
+        if len(items_schema) < 4:  # Should have at least id, checklist_id, content, checked columns
+            return False
+        
+        # Check if new columns exist (for schema updates)
+        column_names = [col[1] for col in items_schema]
+        if 'parent_item_id' not in column_names or 'url' not in column_names:
             return False
         
         return True
@@ -94,6 +99,41 @@ def ensure_db_initialized(app_instance=None, db_path=None):
     
     if not database_exists_and_initialized(db_path):
         init_db(app_instance, db_path)
+
+def organize_items_hierarchically(all_items):
+    """Organize items into a hierarchical structure"""
+    items_dict = {}
+    root_items = []
+    
+    # First pass: create dictionary of all items
+    for item in all_items:
+        item_dict = dict(item)
+        item_dict['subitems'] = []
+        items_dict[item['id']] = item_dict
+    
+    # Second pass: organize hierarchy
+    for item in all_items:
+        if item['parent_item_id'] is None:
+            # Root item
+            root_items.append(items_dict[item['id']])
+        else:
+            # Subitem - add to parent's subitems list
+            if item['parent_item_id'] in items_dict:
+                items_dict[item['parent_item_id']]['subitems'].append(items_dict[item['id']])
+    
+    return root_items
+
+def delete_item_and_subitems(db, item_id):
+    """Recursively delete an item and all its subitems"""
+    # Find all subitems of this item
+    subitems = db.execute('SELECT id FROM items WHERE parent_item_id = ?', (item_id,)).fetchall()
+    
+    # Recursively delete subitems
+    for subitem in subitems:
+        delete_item_and_subitems(db, subitem['id'])
+    
+    # Delete the item itself
+    db.execute('DELETE FROM items WHERE id = ?', (item_id,))
 
 def create_app(config=None):
     """Application factory function"""
@@ -206,10 +246,14 @@ def create_app(config=None):
             (id, current_user.id)
         ).fetchone()
         if checklist:
-            items = db.execute(
-                'SELECT * FROM items WHERE checklist_id = ?',
+            # Get all items for this checklist
+            all_items = db.execute(
+                'SELECT * FROM items WHERE checklist_id = ? ORDER BY id',
                 (id,)
             ).fetchall()
+            
+            # Organize items hierarchically
+            items = organize_items_hierarchically(all_items)
             return render_template('checklist.html', checklist=checklist, items=items)
         return redirect(url_for('dashboard'))
 
@@ -233,14 +277,27 @@ def create_app(config=None):
     @login_required
     def add_item(checklist_id):
         content = request.form['content']
+        url = request.form.get('url', '').strip()
+        parent_item_id = request.form.get('parent_item_id')
+        
         if not content:
             flash('Content is required')
             return redirect(url_for('checklist', id=checklist_id))
+        
+        # Validate URL if provided
+        if url and not (url.startswith('http://') or url.startswith('https://')):
+            url = 'https://' + url
+            
+        # Convert empty string to None for parent_item_id
+        if parent_item_id == '':
+            parent_item_id = None
+        elif parent_item_id:
+            parent_item_id = int(parent_item_id)
             
         db = get_db()
         db.execute(
-            'INSERT INTO items (checklist_id, content, checked) VALUES (?, ?, 0)',
-            (checklist_id, content)
+            'INSERT INTO items (checklist_id, parent_item_id, content, url, checked) VALUES (?, ?, ?, ?, 0)',
+            (checklist_id, parent_item_id, content, url)
         )
         db.commit()
         return redirect(url_for('checklist', id=checklist_id))
@@ -260,6 +317,37 @@ def create_app(config=None):
             return jsonify({'success': True})
         return jsonify({'success': False}), 404
 
+    @app.route('/edit_item/<int:item_id>', methods=['POST'])
+    @login_required
+    def edit_item(item_id):
+        content = request.form.get('content', '').strip()
+        url = request.form.get('url', '').strip()
+        
+        if not content:
+            return jsonify({'success': False, 'error': 'Content is required'}), 400
+        
+        # Validate URL if provided
+        if url and not (url.startswith('http://') or url.startswith('https://')):
+            url = 'https://' + url
+        
+        db = get_db()
+        # Verify item exists and belongs to user's checklist
+        item = db.execute('''
+            SELECT i.*, c.user_id 
+            FROM items i 
+            JOIN checklists c ON i.checklist_id = c.id 
+            WHERE i.id = ? AND c.user_id = ?
+        ''', (item_id, current_user.id)).fetchone()
+        
+        if item:
+            db.execute(
+                'UPDATE items SET content = ?, url = ? WHERE id = ?',
+                (content, url, item_id)
+            )
+            db.commit()
+            return jsonify({'success': True})
+        return jsonify({'success': False}), 404
+
     @app.route('/delete_item/<int:item_id>', methods=['POST'])
     @login_required
     def delete_item(item_id):
@@ -273,7 +361,8 @@ def create_app(config=None):
         ''', (item_id, current_user.id)).fetchone()
         
         if item:
-            db.execute('DELETE FROM items WHERE id = ?', (item_id,))
+            # Delete all subitems first (cascade deletion)
+            delete_item_and_subitems(db, item_id)
             db.commit()
             return jsonify({'success': True})
         return jsonify({'success': False}), 404
