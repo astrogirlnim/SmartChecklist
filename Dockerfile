@@ -10,7 +10,9 @@ COPY requirements.txt .
 
 RUN pip install -r requirements.txt
 
-COPY . .
+# Copy only essential files and the smartchecklist package
+COPY pyproject.toml MANIFEST.in sync_and_build.sh schema.sql app.py ./
+COPY smartchecklist/ smartchecklist/
 
 # Make the script executable and run it
 RUN chmod +x sync_and_build.sh && ./sync_and_build.sh

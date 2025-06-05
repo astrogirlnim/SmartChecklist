@@ -11,46 +11,28 @@ set -e  # Exit on any error
 echo "🔄 Starting smartchecklist wheel build process..."
 echo ""
 
-# Step 1: Sync static files from root to package directory
+# Step 1: Sync static files from package to root (package is the source of truth)
 echo "📁 Syncing static files..."
-if [ -d "static" ] && [ -d "smartchecklist/static" ]; then
-    echo "   • Copying static/script.js → smartchecklist/static/script.js"
-    cp static/script.js smartchecklist/static/script.js
-    
-    echo "   • Copying static/styles.css → smartchecklist/static/styles.css"
-    cp static/styles.css smartchecklist/static/styles.css
-    
-    echo "   ✅ Static files synced"
+if [ -d "smartchecklist/static" ]; then
+    mkdir -p static
+    echo "   • Copying smartchecklist/static/* → static/"
+    cp smartchecklist/static/* static/
+    echo "   ✅ Static files synced from package to root"
 else
-    echo "   ⚠️  Warning: static directories not found, skipping..."
+    echo "   ⚠️  Warning: smartchecklist/static directory not found, skipping..."
 fi
 
 echo ""
 
-# Step 2: Sync template files from root to package directory  
+# Step 2: Sync template files from package to root (package is the source of truth)
 echo "📄 Syncing template files..."
-if [ -d "templates" ] && [ -d "smartchecklist/templates" ]; then
-    echo "   • Copying templates/checklist.html → smartchecklist/templates/checklist.html"
-    cp templates/checklist.html smartchecklist/templates/checklist.html
-    
-    echo "   • Copying templates/dashboard.html → smartchecklist/templates/dashboard.html"
-    cp templates/dashboard.html smartchecklist/templates/dashboard.html
-    
-    echo "   • Copying templates/base.html → smartchecklist/templates/base.html"
-    cp templates/base.html smartchecklist/templates/base.html
-    
-    echo "   • Copying templates/login.html → smartchecklist/templates/login.html"
-    cp templates/login.html smartchecklist/templates/login.html
-    
-    echo "   • Copying templates/register.html → smartchecklist/templates/register.html"
-    cp templates/register.html smartchecklist/templates/register.html
-    
-    echo "   • Copying templates/splash.html → smartchecklist/templates/splash.html"
-    cp templates/splash.html smartchecklist/templates/splash.html
-    
-    echo "   ✅ Template files synced"
+if [ -d "smartchecklist/templates" ]; then
+    mkdir -p templates
+    echo "   • Copying smartchecklist/templates/* → templates/"
+    cp smartchecklist/templates/*.html templates/
+    echo "   ✅ Template files synced from package to root"
 else
-    echo "   ⚠️  Warning: template directories not found, skipping..."
+    echo "   ⚠️  Warning: smartchecklist/templates directory not found, skipping..."
 fi
 
 echo ""

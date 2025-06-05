@@ -21,8 +21,12 @@
         </div>
     </div>
 
+    <!-- Main Item Form -->
     <form method="post" action="{{ url_for('add_item', checklist_id=checklist.id) }}" class="add-item-form">
-        <input type="text" name="content" placeholder="Enter new item..." required>
+        <div class="form-row">
+            <input type="text" name="content" placeholder="Enter new item..." required class="item-input">
+            <input type="url" name="url" placeholder="Optional link (URL)..." class="url-input">
+        </div>
         <button type="submit" class="btn btn-primary">
             <i class="fas fa-plus"></i>
             Add Item
@@ -31,17 +35,123 @@
 
     <div class="items-list">
         {% for item in items %}
-        <div class="item {% if item.checked %}checked{% endif %}" data-item-id="{{ item.id }}">
-            <label class="item-content">
-                <input type="checkbox" 
-                       {% if item.checked %}checked{% endif %}
-                       onchange="toggleItem({{ item.id }})"
-                >
-                <span class="item-text">{{ item.content }}</span>
-            </label>
-            <button onclick="deleteItem({{ item.id }})" class="btn btn-delete-item" title="Delete item">
-                <i class="fas fa-times"></i>
-            </button>
+        <div class="item-container" data-item-id="{{ item.id }}">
+            <!-- Main Item -->
+            <div class="item {% if item.checked %}checked{% endif %}" data-item-id="{{ item.id }}">
+                <div class="item-main">
+                    <div class="item-content">
+                        <label class="checkbox-label">
+                            <input type="checkbox" 
+                                   {% if item.checked %}checked{% endif %}
+                                   onchange="toggleItem({{ item.id }})"
+                            >
+                        </label>
+                        <span class="item-text">{{ item.content }}</span>
+                        {% if item.url %}
+                        <a href="{{ item.url }}" target="_blank" class="item-link" title="Open link" onclick="event.stopPropagation();">
+                            <i class="fas fa-external-link-alt"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="item-actions">
+                        <button onclick='showEditForm({{ item.id }}, {{ item.content|tojson }}, {{ (item.url or "")|tojson }})' class="btn btn-edit-item" title="Edit item">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="showSubitemForm({{ item.id }})" 
+                                class="btn btn-add-subitem" title="Add sub-item">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button onclick="deleteItem({{ item.id }})" class="btn btn-delete-item" title="Delete item">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Form (hidden by default) -->
+            <div id="edit-form-{{ item.id }}" class="edit-item-form" style="display: none;">
+                <div class="form-row">
+                    <input type="text" id="edit-content-{{ item.id }}" placeholder="Item content..." required class="item-input" autocomplete="off">
+                    <input type="url" id="edit-url-{{ item.id }}" placeholder="Optional link (URL)..." class="url-input" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="form-actions">
+                    <button onclick="saveEditItem({{ item.id }})" class="btn btn-primary btn-small">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                    <button onclick="cancelEditItem({{ item.id }})" class="btn btn-secondary btn-small">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </div>
+
+            <!-- Subitem Form (hidden by default) -->
+            <div id="subitem-form-{{ item.id }}" class="add-subitem-form" style="display: none;">
+                <form method="post" action="{{ url_for('add_item', checklist_id=checklist.id) }}">
+                    <input type="hidden" name="parent_item_id" value="{{ item.id }}">
+                    <div class="form-row">
+                        <input type="text" name="content" placeholder="Enter sub-item..." required class="item-input">
+                        <input type="url" name="url" placeholder="Optional link (URL)..." class="url-input">
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary btn-small">
+                            <i class="fas fa-plus"></i> Add Sub-item
+                        </button>
+                        <button type="button" onclick="hideSubitemForm({{ item.id }})" class="btn btn-secondary btn-small">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Subitems -->
+            {% if item.subitems %}
+            <div class="subitems-container">
+                {% for subitem in item.subitems %}
+                <div class="subitem {% if subitem.checked %}checked{% endif %}" data-item-id="{{ subitem.id }}">
+                    <div class="subitem-main">
+                        <div class="item-content">
+                            <label class="checkbox-label">
+                                <input type="checkbox" 
+                                       {% if subitem.checked %}checked{% endif %}
+                                       onchange="toggleItem({{ subitem.id }})"
+                                >
+                            </label>
+                            <span class="item-text">{{ subitem.content }}</span>
+                            {% if subitem.url %}
+                            <a href="{{ subitem.url }}" target="_blank" class="item-link" title="Open link" onclick="event.stopPropagation();">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                        <div class="item-actions">
+                            <button onclick='showEditForm({{ subitem.id }}, {{ subitem.content|tojson }}, {{ (subitem.url or "")|tojson }})' class="btn btn-edit-item" title="Edit sub-item">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="deleteItem({{ subitem.id }})" class="btn btn-delete-item" title="Delete sub-item">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Edit Form for Subitem (hidden by default) -->
+                    <div id="edit-form-{{ subitem.id }}" class="edit-item-form" style="display: none;">
+                        <div class="form-row">
+                            <input type="text" id="edit-content-{{ subitem.id }}" placeholder="Sub-item content..." required class="item-input" autocomplete="off">
+                            <input type="url" id="edit-url-{{ subitem.id }}" placeholder="Optional link (URL)..." class="url-input" autocomplete="off" spellcheck="false">
+                        </div>
+                        <div class="form-actions">
+                            <button onclick="saveEditItem({{ subitem.id }})" class="btn btn-primary btn-small">
+                                <i class="fas fa-save"></i> Save
+                            </button>
+                            <button onclick="cancelEditItem({{ subitem.id }})" class="btn btn-secondary btn-small">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
         {% else %}
         <p class="no-items">
