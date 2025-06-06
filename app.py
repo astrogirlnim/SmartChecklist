@@ -3,6 +3,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
+from functools import wraps
 
 def get_db_connection(db_path):
     """Get database connection for a given database path"""
@@ -134,6 +135,15 @@ def delete_item_and_subitems(db, item_id):
     
     # Delete the item itself
     db.execute('DELETE FROM items WHERE id = ?', (item_id,))
+
+def api_login_required(f):
+    """Decorator for API routes that require authentication"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return jsonify({'error': 'Authentication required'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
 
 def create_app(config=None):
     """Application factory function"""
@@ -385,6 +395,366 @@ def create_app(config=None):
             db.commit()
             return jsonify({'success': True})
         return jsonify({'success': False}), 404
+
+    # ========================================
+    # API ROUTES
+    # ========================================
+    
+    @app.route('/api/checklists', methods=['GET'])
+    @api_login_required
+    def api_get_checklists():
+        """Get all checklists for the current user"""
+        db = get_db()
+        checklists = db.execute(
+            'SELECT id, title FROM checklists WHERE user_id = ? ORDER BY id',
+            (current_user.id,)
+        ).fetchall()
+        
+        return jsonify({
+            'checklists': [dict(checklist) for checklist in checklists]
+        })
+    
+    @app.route('/api/checklists', methods=['POST'])
+    @api_login_required
+    def api_create_checklist():
+        """Create a new checklist"""
+        data = request.get_json() or {}
+        if 'title' not in data:
+            return jsonify({'error': 'Title is required'}), 400
+        
+        title = data['title'].strip()
+        if not title:
+            return jsonify({'error': 'Title cannot be empty'}), 400
+        
+        db = get_db()
+        cursor = db.execute(
+            'INSERT INTO checklists (user_id, title) VALUES (?, ?)',
+            (current_user.id, title)
+        )
+        db.commit()
+        
+        return jsonify({
+            'id': cursor.lastrowid,
+            'title': title,
+            'user_id': current_user.id
+        }), 201
+    
+    @app.route('/api/checklists/<int:checklist_id>', methods=['GET'])
+    @api_login_required
+    def api_get_checklist(checklist_id):
+        """Get a specific checklist with all its items"""
+        db = get_db()
+        
+        # Get checklist (verify ownership)
+        checklist = db.execute(
+            'SELECT * FROM checklists WHERE id = ? AND user_id = ?',
+            (checklist_id, current_user.id)
+        ).fetchone()
+        
+        if not checklist:
+            return jsonify({'error': 'Checklist not found'}), 404
+        
+        # Get all items for this checklist
+        all_items = db.execute(
+            'SELECT * FROM items WHERE checklist_id = ? ORDER BY id',
+            (checklist_id,)
+        ).fetchall()
+        
+        # Organize items hierarchically
+        items = organize_items_hierarchically(all_items)
+        
+        return jsonify({
+            'id': checklist['id'],
+            'title': checklist['title'],
+            'user_id': checklist['user_id'],
+            'items': [dict(item) for item in items]
+        })
+    
+    @app.route('/api/checklists/<int:checklist_id>', methods=['PUT'])
+    @api_login_required
+    def api_update_checklist(checklist_id):
+        """Update a checklist (currently just title)"""
+        data = request.get_json() or {}
+        if 'title' not in data:
+            return jsonify({'error': 'Title is required'}), 400
+        
+        title = data['title'].strip()
+        if not title:
+            return jsonify({'error': 'Title cannot be empty'}), 400
+        
+        db = get_db()
+        
+        # Verify ownership and update
+        result = db.execute(
+            'UPDATE checklists SET title = ? WHERE id = ? AND user_id = ?',
+            (title, checklist_id, current_user.id)
+        )
+        
+        if result.rowcount == 0:
+            return jsonify({'error': 'Checklist not found'}), 404
+        
+        db.commit()
+        return jsonify({'id': checklist_id, 'title': title})
+    
+    @app.route('/api/checklists/<int:checklist_id>', methods=['DELETE'])
+    @api_login_required
+    def api_delete_checklist(checklist_id):
+        """Delete a checklist and all its items"""
+        db = get_db()
+        
+        # Check if the checklist belongs to the current user
+        checklist = db.execute(
+            'SELECT * FROM checklists WHERE id = ? AND user_id = ?',
+            (checklist_id, current_user.id)
+        ).fetchone()
+        
+        if not checklist:
+            return jsonify({'error': 'Checklist not found'}), 404
+        
+        # Delete all items in the checklist first (due to foreign key constraint)
+        db.execute('DELETE FROM items WHERE checklist_id = ?', (checklist_id,))
+        # Then delete the checklist itself
+        db.execute('DELETE FROM checklists WHERE id = ?', (checklist_id,))
+        db.commit()
+        
+        return jsonify({'message': 'Checklist deleted successfully'})
+    
+    # Item-specific API routes
+    @app.route('/api/checklists/<int:checklist_id>/items', methods=['GET'])
+    @api_login_required
+    def api_get_items(checklist_id):
+        """Get all items in a checklist"""
+        db = get_db()
+        
+        # Verify checklist ownership
+        checklist = db.execute(
+            'SELECT * FROM checklists WHERE id = ? AND user_id = ?',
+            (checklist_id, current_user.id)
+        ).fetchone()
+        
+        if not checklist:
+            return jsonify({'error': 'Checklist not found'}), 404
+        
+        # Get all items for this checklist
+        all_items = db.execute(
+            'SELECT * FROM items WHERE checklist_id = ? ORDER BY id',
+            (checklist_id,)
+        ).fetchall()
+        
+        # Organize items hierarchically
+        items = organize_items_hierarchically(all_items)
+        
+        return jsonify({
+            'checklist_id': checklist_id,
+            'items': [dict(item) for item in items]
+        })
+    
+    @app.route('/api/checklists/<int:checklist_id>/items', methods=['POST'])
+    @api_login_required
+    def api_create_item(checklist_id):
+        """Create a new item in a checklist"""
+        data = request.get_json() or {}
+        if 'content' not in data:
+            return jsonify({'error': 'Content is required'}), 400
+        
+        content = data['content'].strip()
+        if not content:
+            return jsonify({'error': 'Content cannot be empty'}), 400
+        
+        url = data.get('url', '').strip()
+        parent_item_id = data.get('parent_item_id')
+        checked = data.get('checked', False)
+        
+        # Validate URL if provided
+        if url and not (url.startswith('http://') or url.startswith('https://')):
+            url = 'https://' + url
+        
+        # Validate parent_item_id if provided
+        if parent_item_id is not None:
+            try:
+                parent_item_id = int(parent_item_id)
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid parent_item_id'}), 400
+        
+        db = get_db()
+        
+        # Verify checklist ownership
+        checklist = db.execute(
+            'SELECT * FROM checklists WHERE id = ? AND user_id = ?',
+            (checklist_id, current_user.id)
+        ).fetchone()
+        
+        if not checklist:
+            return jsonify({'error': 'Checklist not found'}), 404
+        
+        # If parent_item_id is specified, verify it exists in this checklist
+        if parent_item_id:
+            parent_item = db.execute(
+                'SELECT * FROM items WHERE id = ? AND checklist_id = ?',
+                (parent_item_id, checklist_id)
+            ).fetchone()
+            if not parent_item:
+                return jsonify({'error': 'Parent item not found'}), 404
+        
+        # Create the item
+        cursor = db.execute(
+            'INSERT INTO items (checklist_id, parent_item_id, content, url, checked) VALUES (?, ?, ?, ?, ?)',
+            (checklist_id, parent_item_id, content, url, 1 if checked else 0)
+        )
+        db.commit()
+        
+        return jsonify({
+            'id': cursor.lastrowid,
+            'checklist_id': checklist_id,
+            'parent_item_id': parent_item_id,
+            'content': content,
+            'url': url,
+            'checked': checked
+        }), 201
+    
+    @app.route('/api/checklists/<int:checklist_id>/items/<int:item_id>', methods=['GET'])
+    @api_login_required
+    def api_get_item(checklist_id, item_id):
+        """Get a specific item"""
+        db = get_db()
+        
+        # Verify item exists and belongs to user's checklist
+        item = db.execute('''
+            SELECT i.*, c.user_id 
+            FROM items i 
+            JOIN checklists c ON i.checklist_id = c.id 
+            WHERE i.id = ? AND i.checklist_id = ? AND c.user_id = ?
+        ''', (item_id, checklist_id, current_user.id)).fetchone()
+        
+        if not item:
+            return jsonify({'error': 'Item not found'}), 404
+        
+        # Get subitems if any
+        subitems = db.execute(
+            'SELECT * FROM items WHERE parent_item_id = ? ORDER BY id',
+            (item_id,)
+        ).fetchall()
+        
+        item_dict = dict(item)
+        item_dict['subitems'] = [dict(subitem) for subitem in subitems]
+        
+        return jsonify(item_dict)
+    
+    @app.route('/api/checklists/<int:checklist_id>/items/<int:item_id>', methods=['PUT'])
+    @api_login_required
+    def api_update_item(checklist_id, item_id):
+        """Update an item"""
+        data = request.get_json() or {}
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        db = get_db()
+        
+        # Verify item exists and belongs to user's checklist
+        item = db.execute('''
+            SELECT i.*, c.user_id 
+            FROM items i 
+            JOIN checklists c ON i.checklist_id = c.id 
+            WHERE i.id = ? AND i.checklist_id = ? AND c.user_id = ?
+        ''', (item_id, checklist_id, current_user.id)).fetchone()
+        
+        if not item:
+            return jsonify({'error': 'Item not found'}), 404
+        
+        # Prepare update fields
+        updates = []
+        params = []
+        
+        if 'content' in data:
+            content = data['content'].strip()
+            if not content:
+                return jsonify({'error': 'Content cannot be empty'}), 400
+            updates.append('content = ?')
+            params.append(content)
+        
+        if 'url' in data:
+            url = data['url'].strip()
+            if url and not (url.startswith('http://') or url.startswith('https://')):
+                url = 'https://' + url
+            updates.append('url = ?')
+            params.append(url)
+        
+        if 'checked' in data:
+            updates.append('checked = ?')
+            params.append(1 if data['checked'] else 0)
+        
+        if not updates:
+            return jsonify({'error': 'No valid fields to update'}), 400
+        
+        # Execute update
+        params.append(item_id)
+        db.execute(
+            f'UPDATE items SET {", ".join(updates)} WHERE id = ?',
+            params
+        )
+        db.commit()
+        
+        # Return updated item
+        updated_item = db.execute(
+            'SELECT * FROM items WHERE id = ?',
+            (item_id,)
+        ).fetchone()
+        
+        return jsonify(dict(updated_item))
+    
+    @app.route('/api/checklists/<int:checklist_id>/items/<int:item_id>', methods=['DELETE'])
+    @api_login_required
+    def api_delete_item(checklist_id, item_id):
+        """Delete an item and all its subitems"""
+        db = get_db()
+        
+        # Verify item exists and belongs to user's checklist
+        item = db.execute('''
+            SELECT i.*, c.user_id 
+            FROM items i 
+            JOIN checklists c ON i.checklist_id = c.id 
+            WHERE i.id = ? AND i.checklist_id = ? AND c.user_id = ?
+        ''', (item_id, checklist_id, current_user.id)).fetchone()
+        
+        if not item:
+            return jsonify({'error': 'Item not found'}), 404
+        
+        # Delete all subitems first (cascade deletion)
+        delete_item_and_subitems(db, item_id)
+        db.commit()
+        
+        return jsonify({'message': 'Item deleted successfully'})
+    
+    # Additional API utility endpoints
+    @app.route('/api/checklists/<int:checklist_id>/items/<int:item_id>/toggle', methods=['POST'])
+    @api_login_required
+    def api_toggle_item(checklist_id, item_id):
+        """Toggle an item's checked status"""
+        db = get_db()
+        
+        # Verify item exists and belongs to user's checklist
+        item = db.execute('''
+            SELECT i.*, c.user_id 
+            FROM items i 
+            JOIN checklists c ON i.checklist_id = c.id 
+            WHERE i.id = ? AND i.checklist_id = ? AND c.user_id = ?
+        ''', (item_id, checklist_id, current_user.id)).fetchone()
+        
+        if not item:
+            return jsonify({'error': 'Item not found'}), 404
+        
+        new_state = 1 if item['checked'] == 0 else 0
+        db.execute(
+            'UPDATE items SET checked = ? WHERE id = ?',
+            (new_state, item_id)
+        )
+        db.commit()
+        
+        return jsonify({
+            'id': item_id,
+            'checked': bool(new_state),
+            'message': f'Item {"checked" if new_state else "unchecked"}'
+        })
     
     @app.cli.command('init-db')
     def init_db_command():
